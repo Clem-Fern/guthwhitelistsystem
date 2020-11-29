@@ -7,8 +7,7 @@ if SERVER then
 
         local job = net.ReadUInt( guthwhitelistsystem.JobIDBit )
         local bool = net.ReadBool()
-        local vip = net.ReadBool()
-        guthwhitelistsystem:WLSetJobWhitelist( job, bool or false, vip or false )
+        guthwhitelistsystem:WLSetJobWhitelist( job, bool or false)
     end )
 
 end
@@ -20,17 +19,22 @@ guthwhitelistsystem.setPanel( guthwhitelistsystem.getLan( "Jobs" ), "icon16/brie
     local pnlJ = vgui.Create( "DPanel", sheet ) -- panel jobs
     local ply = LocalPlayer()
 
+    local targetJobId
+
     if not DarkRP then
         guthwhitelistsystem.panelNotif( pnlJ, "icon16/exclamation.png", guthwhitelistsystem.getLan( "PanelDarkRP" ), -1, Color( 214, 45, 45 ) )
     end
 
     local listJ = vgui.Create( "DListView", pnlJ )
-        listJ:Dock( FILL )
-        listJ:DockMargin( 10, 10, 10, 10 )
+    local listP = vgui.Create("DListView", pnlJ) 
+
+    --  > Jobs Whitelist
+        listJ:Dock( LEFT )
+        listJ:DockMargin( 5, 5, 0, 5 )
+        listJ:SetWidth(150)
         listJ:SetMultiSelect( false )
         listJ:AddColumn( guthwhitelistsystem.getLan( "Jobs" ) )
         listJ:AddColumn( guthwhitelistsystem.getLan( "Whitelist ?" ) )
-        listJ:AddColumn( guthwhitelistsystem.getLan( "VIP ?" ) )
         function listJ:Actualize()
             self:Clear()
 
@@ -38,7 +42,7 @@ guthwhitelistsystem.setPanel( guthwhitelistsystem.getLan( "Jobs" ), "icon16/brie
                 if k == GAMEMODE.DefaultTeam then continue end -- can't whitelist the DefaultTeam
 
                 local wl = guthwhitelistsystem:WLGetJobWhitelist( k )
-                listJ:AddLine( ("%s (%d)"):format( team.GetName( k ), k ), guthwhitelistsystem.getLan( wl.active and "Yes !" or "No !" ), guthwhitelistsystem.getLan( wl.vip and "Yes !" or "No !" ) )
+                listJ:AddLine( ("%s (%d)"):format( team.GetName( k ), k ), guthwhitelistsystem.getLan( wl.active and "Yes !" or "No !" ) )
             end
         end
         function listJ:OnRowRightClick( _, line )
@@ -68,6 +72,7 @@ guthwhitelistsystem.setPanel( guthwhitelistsystem.getLan( "Jobs" ), "icon16/brie
                     guthwhitelistsystem.panelNotif( pnlJ, "icon16/accept.png", (guthwhitelistsystem.getLan( "PanelWhitelistJob" )):format( team.GetName( id ) ), 3, Color( 45, 174, 45 ) )
 
                     self:Actualize()
+                    listP:Actualize()
                 end )
                 add:SetIcon( "icon16/accept.png" )
             else
@@ -98,63 +103,110 @@ guthwhitelistsystem.setPanel( guthwhitelistsystem.getLan( "Jobs" ), "icon16/brie
                 remove:SetIcon( "icon16/delete.png" )
             end
 
-            if line:GetValue( 2 ) == guthwhitelistsystem.getLan( "Yes !" ) and line:GetValue( 3 ) == guthwhitelistsystem.getLan( "No !" ) then
-                local add = m:AddOption( "Activate VIP", function()
-                    local id = string.match( line:GetValue( 1 ), "(%(%d+%))$" )
-                    if not id then return end
-                    id = tonumber( string.match( id, "(%d+)" ) )
+            m:Open()
+        end
+        function listJ:OnRowSelected()
+            local id = string.match( listJ:GetLines()[listJ:GetSelectedLine() or 1]:GetValue( 1 ), "(%(%d+%))$" )
+            if not id then return end
+            targetJobId = tonumber( string.match( id, "(%d+)" ) )
 
-                    if not id then return end
-                    if not ply:WLIsAdmin() then
-                        guthwhitelistsystem.panelNotif( pnlJ, "icon16/shield_delete.png", guthwhitelistsystem.getLan( "PanelNotAdmin" ), 3, Color( 214, 45, 45 ) )
-                        return
+            listP:Actualize()
+            surface.PlaySound( "UI/buttonclick.wav" )
+        end
+        listJ:Actualize()
+
+    --  > Job Whitelisted Player
+        listP:Dock( FILL )
+        listP:DockMargin( 5, 5, 5, 5 )
+        listP:AddColumn( guthwhitelistsystem.getLan( "Players" ) )
+        listP:AddColumn( guthwhitelistsystem.getLan( "SteamID" ) )
+        listP:AddColumn( guthwhitelistsystem.getLan( "Date" ) )
+        listP:AddColumn( guthwhitelistsystem.getLan( "Time" ) )
+        listP:AddColumn( guthwhitelistsystem.getLan( "By" ) )
+
+        function listP:Actualize()
+            self:Clear()
+
+            if not targetJobId then return end
+
+            for playerWhitelist,_ in pairs(guthwhitelistsystem.wl) do
+                local wl = guthwhitelistsystem:WLGetPlayerJobWhitelist( playerWhitelist , targetJobId)
+                if wl then
+                    local playerName
+                    if playerWhitelist and player.GetBySteamID( playerWhitelist ) then
+                        local P = player.GetBySteamID( playerWhitelist )
+                        playerName = P:GetName()
+                    else
+                        playerName = "Offline"
                     end
 
-                    net.Start( "guthwhitelistsystem:SetJobWhitelist" )
-                        net.WriteUInt( id, guthwhitelistsystem.JobIDBit )
-                        net.WriteBool( true )
-                        net.WriteBool( true )
-                    net.SendToServer()
-
-                    guthwhitelistsystem:WLSetJobWhitelist( id, true, true )
-
-                    guthwhitelistsystem.chat( (guthwhitelistsystem.getLan( "ChatActivateVIP" ):format( line:GetValue( 1 ) ) ) )
-                    guthwhitelistsystem.panelNotif( pnlJ, "icon16/money_add.png", (guthwhitelistsystem.getLan( "PanelWhitelistJobVIP" )):format( team.GetName( id ) ), 3, Color( 45, 174, 45 ) )
-
-                    self:Actualize()
-                end )
-                add:SetIcon( "icon16/accept.png" )
-            elseif line:GetValue( 2 ) == guthwhitelistsystem.getLan( "Yes !" ) then
-                local remove = m:AddOption( guthwhitelistsystem.getLan( "DesactivateVIP" ), function()
-                    local id = string.match( line:GetValue( 1 ), "(%(%d+%))$" )
-                    if not id then return end
-                    id = tonumber( string.match( id, "(%d+)" ) )
-
-                    if not id then return end
-                    if not ply:WLIsAdmin() then
-                        guthwhitelistsystem.panelNotif( pnlJ, "icon16/shield_delete.png", guthwhitelistsystem.getLan( "PanelNotAdmin" ), 3, Color( 214, 45, 45 ) )
-                        return
+                    local by
+                    if wl.by and player.GetBySteamID( wl.by ) then
+                        local byP = player.GetBySteamID( wl.by )
+                        by = ("%s(%s)"):format( byP:GetName(), byP:SteamID() )
+                    else
+                        by = wl.by or "Unknow"
                     end
+                    
+                    listP:AddLine( playerName, playerWhitelist, wl.date or "?", wl.time or "?", by )
 
-                    net.Start( "guthwhitelistsystem:SetJobWhitelist" )
-                        net.WriteUInt( id, guthwhitelistsystem.JobIDBit )
-                        net.WriteBool( true )
-                        net.WriteBool( false )
-                    net.SendToServer()
-
-                    guthwhitelistsystem:WLSetJobWhitelist( id, true, false )
-
-                    guthwhitelistsystem.chat( guthwhitelistsystem.getLan( "ChatDesactivateVIP" ):format( line:GetValue( 1 ) ) )
-                    guthwhitelistsystem.panelNotif( pnlJ, "icon16/money_delete.png", guthwhitelistsystem.getLan( "PanelUnwhitelistJobVIP" ):format( team.GetName( id ) ), 3, Color( 214, 45, 45 ) )
-
-                    self:Actualize()
-                end )
-                remove:SetIcon( "icon16/delete.png" )
+                end
             end
+        end
+
+        function listP:OnRowRightClick( _, line )
+            surface.PlaySound( "UI/buttonclickrelease.wav" )
+            local m = DermaMenu( pnlJ )
+
+            local n = m:AddOption( guthwhitelistsystem.getLan( "Copy Name" ), function()
+                SetClipboardText( line:GetColumnText( 1 ) )
+                guthwhitelistsystem.panelNotif( pnlJ, "icon16/page_copy.png", (guthwhitelistsystem.getLan( "CopyName" )):format( line:GetColumnText( 2 ) ), 3, Color( 210, 210, 210 ) )
+            end )
+            n:SetIcon( "icon16/page_copy.png" )
+
+            local sid = m:AddOption( guthwhitelistsystem.getLan( "Copy SteamID" ), function()
+                SetClipboardText( line:GetColumnText( 2 ) )
+                guthwhitelistsystem.panelNotif( pnlJ, "icon16/page_copy.png", (guthwhitelistsystem.getLan( "CopySteamID" )):format( line:GetColumnText( 2 ) ), 3, Color( 210, 210, 210 ) )
+            end )
+            sid:SetIcon( "icon16/page_copy.png" )
+
+            local nsid = m:AddOption( guthwhitelistsystem.getLan( "Copy NameSteamID" ), function()
+                SetClipboardText( ("%s : %s"):format( line:GetColumnText( 1 ), line:GetColumnText( 2 ) ) )
+                guthwhitelistsystem.panelNotif( pnlJ, "icon16/page_copy.png", (guthwhitelistsystem.getLan( "CopyNameSteamID" )):format( line:GetColumnText( 2 ) ), 3, Color( 210, 210, 210 ) )
+            end )
+            nsid:SetIcon( "icon16/page_copy.png" )
+
+            local remove = m:AddOption( guthwhitelistsystem.getLan( "RemoveWhitelist" ) , function()
+
+                if not ply:WLIsAdmin() then
+                    guthwhitelistsystem.panelNotif( pnlJ, "icon16/shield_delete.png", guthwhitelistsystem.getLan( "PanelNotAdmin" ) , 3, Color( 214, 45, 45 ) )
+                    return
+                end
+
+                if not targetJobId then return guthwhitelistsystem.panelNotif( pnlP, "icon16/exclamation.png", guthwhitelistsystem.getLan( "PanelUncorrectTarget" ), 3, Color( 214, 45, 45 ) ) end
+                
+                local id = line:GetValue( 2 )
+                if not id then return guthwhitelistsystem.panelNotif( pnlP, "icon16/exclamation.png", guthwhitelistsystem.getLan( "PanelUncorrectJob" ), 3, Color( 214, 45, 45 ) ) end
+
+                net.Start( "guthwhitelistsystem:SetWhitelist" )
+                    net.WriteString( id )
+                    net.WriteUInt( targetJobId, guthwhitelistsystem.JobIDBit )
+                    net.WriteBool( false )
+                net.SendToServer()
+
+                guthwhitelistsystem:WLSetPlayerJobWhitelist( id, targetJobId, false, LocalPlayer() )
+
+                guthwhitelistsystem.chat( (guthwhitelistsystem.getLan( "ChatRemoveWhitelist" )):format( team.GetName( targetJobId ), id) )
+                guthwhitelistsystem.panelNotif( pnlP, "icon16/delete.png", (guthwhitelistsystem.getLan( "PanelUnwhitelisted" )):format( id, team.GetName( targetJobId ) ), 3, Color( 214, 45, 45 ) )
+
+                timer.Simple( 0, function() self:Actualize() end )
+            end )
+            remove:SetIcon( "icon16/delete.png" )
 
             m:Open()
         end
-        listJ:Actualize()
+
+    
 
     return pnlJ
 
