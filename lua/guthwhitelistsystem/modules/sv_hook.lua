@@ -8,7 +8,7 @@ hook.Add( "playerCanChangeTeam", "guthwhitelistsystem:Hook", function( ply, job 
 
     local wl = guthwhitelistsystem:WLGetJobWhitelist( job )
     if wl.active == true then
-        if guthwhitelistsystem:WLGetPlayerJobWhitelist( job ) then return true end
+        if guthwhitelistsystem:WLGetPlayerJobWhitelist( ply:SteamID(), job ) then return true end
 
         return false, guthwhitelistsystem.getLan( "NotifNotWhitelist" )
     end
